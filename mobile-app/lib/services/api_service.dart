@@ -17,7 +17,7 @@ class ApiService {
     if (!kApiBaseUrlConfigured) {
       throw ApiException(
         'API_BASE_URL is not set. Run the app with:\n'
-        'flutter run --dart-define=API_BASE_URL=https://parking-management-9icp.onrender.com',
+        'flutter run --dart-define=API_BASE_URL=https://YOUR-BACKEND.onrender.com',
       );
     }
   }
