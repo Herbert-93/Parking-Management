@@ -1,4 +1,3 @@
-import { signOut } from "firebase/auth";
 import { firebaseAuth } from "./firebase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -36,15 +35,11 @@ async function handle(res: Response, method: string, url: string) {
       // usually enough to spot a wrong NEXT_PUBLIC_API_BASE_URL at a glance.
     }
 
-    // A 401 here means the backend rejected the token outright (expired,
-    // or the token's Firebase project doesn't match the backend's). Sign
-    // the user out so the next action is a clean re-login instead of a
-    // dashboard stuck showing errors.
-    if (res.status === 401) {
-      await signOut(firebaseAuth).catch(() => {});
-      throw new Error("Your session expired — please sign in again.");
-    }
-
+    // A 401 means the backend rejected the token. This is surfaced as a
+    // normal error (shown on-screen) instead of silently signing the user
+    // out — auto sign-out on every 401 was masking the real problem and
+    // causing an immediate bounce back to /login on every navigation,
+    // which made the underlying issue impossible to see or debug.
     throw new Error(message);
   }
   if (res.status === 204) return null;
