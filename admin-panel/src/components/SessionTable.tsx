@@ -6,6 +6,7 @@ interface Session {
   photoBase64: string | null;
   rateLabel: string;
   ratePrice: number;
+  durationHours: number;
   entryTime: { _seconds: number } | string;
   expectedExitTime: { _seconds: number } | string;
   exitTime: { _seconds: number } | string | null;
@@ -32,6 +33,11 @@ function fmt(value: any) {
   });
 }
 
+function fmtDuration(hours: number) {
+  if (hours == null) return "—";
+  return Number.isInteger(hours) ? `${hours}h` : `${hours}h`;
+}
+
 export default function SessionTable({
   sessions,
   onExit,
@@ -48,12 +54,13 @@ export default function SessionTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-card border border-hairline bg-white">
+    <div className="overflow-x-auto rounded-card border border-hairline bg-white">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-hairline bg-slab/60 text-xs uppercase tracking-wide text-ink/50">
             <th className="px-4 py-3">Photo</th>
             <th className="px-4 py-3">Plate</th>
+            <th className="px-4 py-3">Duration</th>
             <th className="px-4 py-3">Rate</th>
             <th className="px-4 py-3">Entered</th>
             <th className="px-4 py-3">Expected exit</th>
@@ -75,13 +82,19 @@ export default function SessionTable({
                     className="h-10 w-10 rounded-md object-cover"
                   />
                 ) : (
-                  <div className="h-10 w-10 rounded-md bg-slab" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slab text-[9px] text-ink/30">
+                    No photo
+                  </div>
                 )}
               </td>
               <td className="plate px-4 py-3 font-semibold">{s.plateNumber}</td>
               <td className="px-4 py-3 text-ink/70">
-                {s.rateLabel} · ${s.ratePrice}
+                <span className="inline-flex items-center gap-1 rounded-full bg-slab px-2 py-0.5 font-medium text-ink">
+                  {fmtDuration(s.durationHours)}
+                </span>
+                <span className="ml-1 text-xs text-ink/40">({s.rateLabel})</span>
               </td>
+              <td className="stat-figure px-4 py-3 text-ink/80">${s.ratePrice.toFixed(2)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.entryTime)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.expectedExitTime)}</td>
               <td className="px-4 py-3 text-ink/70">{s.exitTime ? fmt(s.exitTime) : "—"}</td>
