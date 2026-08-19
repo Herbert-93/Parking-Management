@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -25,7 +25,9 @@ class _EntryScreenState extends State<EntryScreen> {
   final _hoursController = TextEditingController();
   final _priceController = TextEditingController();
 
-  File? _photo;
+  // Bytes (not dart:io File) so this works on Flutter Web AND native
+  // Android/iOS builds — File() from dart:io silently fails on web.
+  Uint8List? _photoBytes;
   bool _capturingPhoto = false;
   bool _submitting = false;
   String? _error;
@@ -50,37 +52,37 @@ class _EntryScreenState extends State<EntryScreen> {
       // directly on the Firestore document (no separate file storage), so a
       // small, heavily-compressed thumbnail (usually 15-40KB) is what we
       // want — plenty to identify a car, well under Firestore's 1MB cap.
+      // On web this opens the browser's camera/file picker; on a real
+      // device it opens the native camera.
       final picked = await picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 35,
         maxWidth: 480,
       );
       if (picked != null) {
-        final file = File(picked.path);
-        final exists = await file.exists();
-        if (!exists) {
-          throw Exception('The photo could not be saved. Please try again.');
+        final bytes = await picked.readAsBytes();
+        if (bytes.isEmpty) {
+          throw Exception('The photo came back empty. Please try again.');
         }
-        setState(() => _photo = file);
+        setState(() => _photoBytes = bytes);
       }
       // If picked == null the user simply cancelled — not an error.
     } catch (e) {
       setState(() {
         _error =
             'Could not take photo: ${e.toString().replaceFirst('Exception: ', '')}. '
-            'Check that the app has camera permission in your phone settings.';
+            'Check that this browser/app has camera permission.';
       });
     } finally {
       if (mounted) setState(() => _capturingPhoto = false);
     }
   }
 
-  /// Reads the captured photo file and returns it as a base64 data URI
+  /// Encodes the captured photo bytes as a base64 data URI
   /// (e.g. "data:image/jpeg;base64,...."), or null if no photo was taken.
-  Future<String?> _encodePhoto() async {
-    if (_photo == null) return null;
-    final bytes = await _photo!.readAsBytes();
-    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  String? _encodePhoto() {
+    if (_photoBytes == null) return null;
+    return 'data:image/jpeg;base64,${base64Encode(_photoBytes!)}';
   }
 
   double? get _hours => double.tryParse(_hoursController.text.trim());
@@ -112,7 +114,7 @@ class _EntryScreenState extends State<EntryScreen> {
 
     setState(() => _submitting = true);
     try {
-      final photoBase64 = await _encodePhoto();
+      final photoBase64 = _encodePhoto();
       final plateUpper = plate.toUpperCase();
 
       await context.read<ApiService>().post('/api/sessions', {
@@ -127,7 +129,7 @@ class _EntryScreenState extends State<EntryScreen> {
             '$plateUpper logged in — ${_formatDuration(hours)} · \$${price.toStringAsFixed(2)}. '
             'It now shows on the admin panel and the Parked tab.';
         _plateController.clear();
-        _photo = null;
+        _photoBytes = null;
         // Hours/price are intentionally left as-is: attendants usually log
         // several cars in a row on the same duration and rate.
       });
@@ -180,16 +182,12 @@ class _EntryScreenState extends State<EntryScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: _capturingPhoto
                       ? const Center(child: CircularProgressIndicator())
-                      : _photo != null
+                      : _photoBytes != null
                           ? Stack(
                               fit: StackFit.expand,
                               children: [
-                                // key forces Flutter to treat a new file path as a
-                                // new image, so the preview always reflects the
-                                // most recently captured photo.
-                                Image.file(_photo!,
-                                    key: ValueKey(_photo!.path),
-                                    fit: BoxFit.cover),
+                                Image.memory(_photoBytes!,
+                                    fit: BoxFit.cover, gaplessPlayback: true),
                                 Positioned(
                                   right: 8,
                                   bottom: 8,

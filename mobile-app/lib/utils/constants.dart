@@ -1,26 +1,25 @@
 import 'package:flutter/material.dart';
 
-/// Base URL of the deployed backend (Render). Change this once you have
-/// your Render service URL, e.g. https://parking-backend.onrender.com
-/// For local testing against `npm run dev`, use:
+/// Base URL of the deployed backend (Render), e.g.
+/// https://parking-backend-xxxx.onrender.com  (NO trailing slash).
+///
+/// This is intentionally left EMPTY by default — if you forget to pass it
+/// in, the app will show a loud, unmistakable error instead of silently
+/// hitting a placeholder domain and giving you confusing 404s everywhere.
+///
+/// Always run with:
+///   flutter run -d chrome --dart-define=API_BASE_URL=https://YOUR-BACKEND.onrender.com
+/// (swap `-d chrome` for your target device/emulator as needed)
+///
+/// For local testing against `npm run dev` instead of Render:
 ///   - Android emulator: http://10.0.2.2:4000
-///   - iOS simulator / web: http://localhost:4000
+///   - iOS simulator / web/desktop: http://localhost:4000
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://parking-backend.onrender.com',
+  defaultValue: '',
 );
 
-/// Cloudinary is used for car-photo uploads instead of Firebase Storage
-/// (which now requires a paid billing plan to enable at all). Get these
-/// two values by creating a free Cloudinary account — see SETUP_GUIDE.md.
-const String kCloudinaryCloudName = String.fromEnvironment(
-  'CLOUDINARY_CLOUD_NAME',
-  defaultValue: 'REPLACE_ME',
-);
-const String kCloudinaryUploadPreset = String.fromEnvironment(
-  'CLOUDINARY_UPLOAD_PRESET',
-  defaultValue: 'REPLACE_ME',
-);
+const bool kApiBaseUrlConfigured = kApiBaseUrl != '';
 
 // Palette matching the admin panel's "ops dashboard" identity.
 const Color kNight = Color(0xFF10151C);
