@@ -1,11 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../models/rate_plan.dart';
 import '../services/api_service.dart';
 import '../utils/constants.dart';
+
+/// Built-in quick-select duration presets. These are hardcoded into the app
+/// itself — no owner setup or backend configuration required. Tapping one
+/// just fills in the hours field; the attendant can still edit it freely,
+/// and always enters the price themselves since it may vary.
+const List<double> kDurationPresets = [1, 5, 12, 24];
 
 class EntryScreen extends StatefulWidget {
   const EntryScreen({super.key});
@@ -16,42 +22,21 @@ class EntryScreen extends StatefulWidget {
 
 class _EntryScreenState extends State<EntryScreen> {
   final _plateController = TextEditingController();
+  final _hoursController = TextEditingController();
+  final _priceController = TextEditingController();
+
   File? _photo;
   bool _capturingPhoto = false;
-  List<RatePlan> _rates = [];
-  RatePlan? _selectedRate;
-  bool _loadingRates = true;
   bool _submitting = false;
   String? _error;
   String? _success;
 
   @override
-  void initState() {
-    super.initState();
-    _loadRates();
-  }
-
-  Future<void> _loadRates() async {
-    setState(() {
-      _loadingRates = true;
-      _error = null;
-    });
-    try {
-      final data = await context.read<ApiService>().get('/api/rates');
-      final rates =
-          (data['rates'] as List).map((r) => RatePlan.fromJson(r)).toList();
-      setState(() {
-        _rates = rates;
-        _selectedRate = rates.isNotEmpty ? rates.first : null;
-        _loadingRates = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error =
-            'Could not load rate plans: ${e.toString().replaceFirst('Exception: ', '')}';
-        _loadingRates = false;
-      });
-    }
+  void dispose() {
+    _plateController.dispose();
+    _hoursController.dispose();
+    _priceController.dispose();
+    super.dispose();
   }
 
   Future<void> _takePhoto() async {
@@ -72,8 +57,6 @@ class _EntryScreenState extends State<EntryScreen> {
       );
       if (picked != null) {
         final file = File(picked.path);
-        // Confirm the file actually has bytes before treating it as taken —
-        // guards against a picker edge case returning a path with no data.
         final exists = await file.exists();
         if (!exists) {
           throw Exception('The photo could not be saved. Please try again.');
@@ -100,41 +83,53 @@ class _EntryScreenState extends State<EntryScreen> {
     return 'data:image/jpeg;base64,${base64Encode(bytes)}';
   }
 
+  double? get _hours => double.tryParse(_hoursController.text.trim());
+  double? get _price => double.tryParse(_priceController.text.trim());
+
   Future<void> _submit() async {
     setState(() {
       _error = null;
       _success = null;
     });
 
-    if (_plateController.text.trim().isEmpty) {
+    final plate = _plateController.text.trim();
+    if (plate.isEmpty) {
       setState(() => _error = 'Enter the plate number.');
       return;
     }
-    if (_selectedRate == null) {
-      setState(() => _error = 'Select a duration & rate plan.');
+    final hours = _hours;
+    if (hours == null || hours <= 0) {
+      setState(
+          () => _error = 'Enter how many hours the car is being parked for.');
+      return;
+    }
+    final price = _price;
+    if (price == null || price < 0) {
+      setState(
+          () => _error = 'Enter the rate/amount to charge for that duration.');
       return;
     }
 
     setState(() => _submitting = true);
     try {
       final photoBase64 = await _encodePhoto();
-      final plate = _plateController.text.trim().toUpperCase();
-      final rate = _selectedRate!;
+      final plateUpper = plate.toUpperCase();
 
       await context.read<ApiService>().post('/api/sessions', {
-        'plateNumber': plate,
+        'plateNumber': plateUpper,
         'photoBase64': photoBase64,
-        'rateId': rate.id,
+        'durationHours': hours,
+        'price': price,
       });
 
       setState(() {
         _success =
-            '$plate logged in — ${_formatDuration(rate.durationHours)} · \$${rate.price.toStringAsFixed(2)}. '
-            'It now shows on the admin panel.';
+            '$plateUpper logged in — ${_formatDuration(hours)} · \$${price.toStringAsFixed(2)}. '
+            'It now shows on the admin panel and the Parked tab.';
         _plateController.clear();
         _photo = null;
-        // _selectedRate is intentionally left as-is: attendants usually log
-        // several cars in a row on the same duration/rate plan.
+        // Hours/price are intentionally left as-is: attendants usually log
+        // several cars in a row on the same duration and rate.
       });
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -161,7 +156,7 @@ class _EntryScreenState extends State<EntryScreen> {
               const Text('Log a car in',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text('Take a photo, enter the plate, pick a duration & rate.',
+              Text('Take a photo, enter the plate, set the duration & rate.',
                   style: TextStyle(color: Colors.black.withOpacity(0.5))),
               const SizedBox(height: 20),
 
@@ -242,8 +237,7 @@ class _EntryScreenState extends State<EntryScreen> {
               TextField(
                 controller: _plateController,
                 textCapitalization: TextCapitalization.characters,
-                onChanged: (_) => setState(
-                    () {}), // keeps the summary card below in sync as you type
+                onChanged: (_) => setState(() {}),
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1,
@@ -258,93 +252,116 @@ class _EntryScreenState extends State<EntryScreen> {
               ),
               const SizedBox(height: 20),
 
-              // --- Duration & rate selection ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Duration & rate',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  if (!_loadingRates)
-                    TextButton(
-                      onPressed: _loadRates,
-                      style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero, minimumSize: Size.zero),
-                      child:
-                          const Text('Refresh', style: TextStyle(fontSize: 12)),
+              // --- Duration quick-presets (built into the app) ---
+              const Text('Quick duration',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: kDurationPresets.map((h) {
+                  final selected = _hours == h;
+                  return GestureDetector(
+                    onTap: () => setState(() => _hoursController.text =
+                        h == h.roundToDouble()
+                            ? h.toInt().toString()
+                            : h.toString()),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color:
+                            selected ? kSignal.withOpacity(0.15) : Colors.white,
+                        border: Border.all(
+                            color: selected ? kSignal : const Color(0xFFE4E0D6),
+                            width: selected ? 1.5 : 1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _formatDuration(h),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: selected ? kSignal : kInk),
+                      ),
                     ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // --- Manual duration & rate entry ---
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Duration (hours)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _hoursController,
+                          onChanged: (_) => setState(() {}),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d*'))
+                          ],
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 5',
+                            suffixText: 'h',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Rate (\$)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _priceController,
+                          onChanged: (_) => setState(() {}),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d*'))
+                          ],
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 10',
+                            prefixText: '\$ ',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              if (_loadingRates)
-                const Center(
-                    child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator()))
-              else if (_rates.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10)),
-                  child: const Text(
-                    'No rate plans configured yet. Ask the owner to add some under "Rate plans" in the admin panel, then tap Refresh.',
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _rates.map((rate) {
-                    final selected = _selectedRate?.id == rate.id;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedRate = rate),
-                      child: Container(
-                        width: 108,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? kSignal.withOpacity(0.15)
-                              : Colors.white,
-                          border: Border.all(
-                              color:
-                                  selected ? kSignal : const Color(0xFFE4E0D6),
-                              width: selected ? 1.5 : 1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.schedule,
-                                size: 16,
-                                color: selected ? kSignal : Colors.black38),
-                            const SizedBox(height: 4),
-                            Text(_formatDuration(rate.durationHours),
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
-                                    color: selected ? kSignal : kInk)),
-                            Text(rate.label,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.black.withOpacity(0.5))),
-                            const SizedBox(height: 4),
-                            Text('\$${rate.price.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    color: selected ? kSignal : kInk)),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
               const SizedBox(height: 16),
 
               // --- Selection summary, shown right before submit for confidence ---
-              if (_selectedRate != null)
+              if (_hours != null && _hours! > 0 && _price != null)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
@@ -369,14 +386,14 @@ class _EntryScreenState extends State<EntryScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${_formatDuration(_selectedRate!.durationHours)} · ${_selectedRate!.label}',
+                            '${_formatDuration(_hours!)} · flat rate',
                             style: TextStyle(
                                 color: Colors.white.withOpacity(0.6),
                                 fontSize: 12),
                           ),
                         ],
                       ),
-                      Text('\$${_selectedRate!.price.toStringAsFixed(2)}',
+                      Text('\$${_price!.toStringAsFixed(2)}',
                           style: const TextStyle(
                               color: kSignal,
                               fontWeight: FontWeight.bold,

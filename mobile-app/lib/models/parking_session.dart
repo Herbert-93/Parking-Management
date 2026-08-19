@@ -2,7 +2,6 @@ class ParkingSession {
   final String id;
   final String plateNumber;
   final String? photoBase64;
-  final String rateId;
   final String rateLabel;
   final double ratePrice;
   final double durationHours;
@@ -18,7 +17,6 @@ class ParkingSession {
     required this.id,
     required this.plateNumber,
     required this.photoBase64,
-    required this.rateId,
     required this.rateLabel,
     required this.ratePrice,
     required this.durationHours,
@@ -47,17 +45,22 @@ class ParkingSession {
       id: json['id'],
       plateNumber: json['plateNumber'],
       photoBase64: json['photoBase64'],
-      rateId: json['rateId'],
-      rateLabel: json['rateLabel'],
+      rateLabel: json['rateLabel'] ?? '',
       ratePrice: (json['ratePrice'] as num).toDouble(),
       durationHours: (json['durationHours'] as num).toDouble(),
       entryTime: _parseDate(json['entryTime'])!,
       expectedExitTime: _parseDate(json['expectedExitTime'])!,
       exitTime: _parseDate(json['exitTime']),
       status: json['status'],
-      finalCost: json['finalCost'] != null ? (json['finalCost'] as num).toDouble() : null,
-      overageHours: json['overageHours'] != null ? (json['overageHours'] as num).toDouble() : null,
-      overageCost: json['overageCost'] != null ? (json['overageCost'] as num).toDouble() : null,
+      finalCost: json['finalCost'] != null
+          ? (json['finalCost'] as num).toDouble()
+          : null,
+      overageHours: json['overageHours'] != null
+          ? (json['overageHours'] as num).toDouble()
+          : null,
+      overageCost: json['overageCost'] != null
+          ? (json['overageCost'] as num).toDouble()
+          : null,
     );
   }
 }

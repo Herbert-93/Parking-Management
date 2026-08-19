@@ -25,7 +25,10 @@ const entrySchema = z.object({
     .startsWith("data:image/", "Photo must be a data URI (data:image/...).")
     .nullable()
     .optional(),
-  rateId: z.string().min(1),
+  // Entered directly by the attendant at the moment of logging a car in —
+  // no pre-configured "rate plan" needs to exist for this to work.
+  durationHours: z.number().positive().max(24 * 14, "Duration looks too long — check the hours."),
+  price: z.number().nonnegative(),
   notes: z.string().max(500).optional(),
 });
 
@@ -34,20 +37,18 @@ const entrySchema = z.object({
  * `photoBase64` is a compressed JPEG the mobile app has already encoded
  * as a data URI (data:image/jpeg;base64,....). It's stored directly on
  * the Firestore session document — no separate file storage involved.
+ *
+ * `durationHours` and `price` are typed in by the attendant on the mobile
+ * app itself (with quick-tap presets built into the app UI) — there is no
+ * server-side "rate plan" the owner has to configure first.
  */
 router.post("/", async (req, res) => {
   const parsed = entrySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const { plateNumber, photoBase64, rateId, notes } = parsed.data;
+  const { plateNumber, photoBase64, durationHours, price, notes } = parsed.data;
   const lotId = req.user!.lotId;
-
-  const rateSnap = await db.collection("lots").doc(lotId).collection("rates").doc(rateId).get();
-  if (!rateSnap.exists) {
-    return res.status(404).json({ error: "Selected rate plan does not exist." });
-  }
-  const rate = rateSnap.data() as { label: string; durationHours: number; price: number };
 
   // Guard against double-logging the same plate while it's already parked.
   const dup = await sessionsCol(lotId)
@@ -60,7 +61,8 @@ router.post("/", async (req, res) => {
   }
 
   const entryTime = new Date();
-  const expectedExitTime = new Date(entryTime.getTime() + rate.durationHours * 60 * 60 * 1000);
+  const expectedExitTime = new Date(entryTime.getTime() + durationHours * 60 * 60 * 1000);
+  const hourLabel = Number.isInteger(durationHours) ? `${durationHours}h` : `${durationHours}h`;
 
   const ref = sessionsCol(lotId).doc();
   const session = {
@@ -68,10 +70,9 @@ router.post("/", async (req, res) => {
     lotId,
     plateNumber: plateNumber.toUpperCase().trim(),
     photoBase64: photoBase64 || null,
-    rateId,
-    rateLabel: rate.label,
-    ratePrice: rate.price,
-    durationHours: rate.durationHours,
+    rateLabel: `${hourLabel} flat rate`,
+    ratePrice: price,
+    durationHours,
     entryTime,
     expectedExitTime,
     exitTime: null,
