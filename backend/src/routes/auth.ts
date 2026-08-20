@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, auth as fbAuth, backendProjectId } from "../config/firebase";
+import { db, auth as fbAuth, getBackendProjectId, getFirebaseInitError } from "../config/firebase";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
@@ -109,6 +109,15 @@ router.post("/register-profile", async (req, res) => {
  * verification passed — never any key material or user data.
  */
 router.get("/debug-token", async (req, res) => {
+  const initErr = getFirebaseInitError();
+  if (initErr) {
+    return res.status(500).json({
+      error: "Firebase Admin failed to initialize on the backend — this is why every request fails.",
+      firebaseInitError: initErr,
+      hint: "Fix FIREBASE_SERVICE_ACCOUNT_BASE64 (or the fallback FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY trio) in the backend's Render environment variables, then redeploy.",
+    });
+  }
+
   const header = req.headers.authorization || "";
   const [scheme, token] = header.split(" ");
   if (scheme !== "Bearer" || !token) {
@@ -135,13 +144,13 @@ router.get("/debug-token", async (req, res) => {
     verifyError = `[${err?.code || "unknown"}] ${err?.message || String(err)}`;
   }
 
-  const backendProjectId2 = backendProjectId; // resolved correctly for both credential methods
+  const backendProjectId = getBackendProjectId();
   const tokenProjectId = payload.aud || null;
 
   res.json({
     tokenProjectId,
-    backendProjectId: backendProjectId2,
-    projectIdsMatch: !!tokenProjectId && tokenProjectId === backendProjectId2,
+    backendProjectId,
+    projectIdsMatch: !!tokenProjectId && tokenProjectId === backendProjectId,
     tokenIssuer: payload.iss || null,
     tokenIssuedAt: payload.iat ? new Date(payload.iat * 1000).toISOString() : null,
     tokenExpiresAt: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
@@ -151,8 +160,8 @@ router.get("/debug-token", async (req, res) => {
     verifiedUid,
     hint: !tokenProjectId
       ? "Could not read a project id from the token at all."
-      : tokenProjectId !== backendProjectId2
-      ? `MISMATCH: this token was issued for Firebase project "${tokenProjectId}", but this backend is configured for "${backendProjectId2}". Fix your backend's Firebase credentials to match, or point the client at the "${backendProjectId2}" project instead.`
+      : tokenProjectId !== backendProjectId
+      ? `MISMATCH: this token was issued for Firebase project "${tokenProjectId}", but this backend is configured for "${backendProjectId}". Fix your backend's Firebase credentials to match, or point the client at the "${backendProjectId}" project instead.`
       : verifyError
       ? "Project IDs match, so this is something else — check the verifyError above (commonly a malformed/corrupted private key, or a genuinely expired token if tokenExpired is true)."
       : "Everything checks out — this token verifies successfully.",

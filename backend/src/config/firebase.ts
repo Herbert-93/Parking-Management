@@ -55,22 +55,71 @@ function loadCredential(): { credential: admin.credential.Credential; projectId:
   return { credential: admin.credential.cert({ projectId, clientEmail, privateKey }), projectId };
 }
 
-const { credential, projectId: resolvedProjectId } = loadCredential();
+// --- Crash-proof initialization -------------------------------------------
+// A bad/missing credential must NEVER take down the whole Node process.
+// Previously, a throw here happened at module-load time, which crashed the
+// server before Express could even start listening — Render then shows a
+// bare 502 with zero information. Instead: try once at startup, remember
+// the failure if any, and let the server keep running. Every route that
+// actually needs Firebase will then fail with a clear, readable error
+// message instead of the whole app going dark.
+let initError: string | null = null;
+let _db: admin.firestore.Firestore | null = null;
+let _auth: admin.auth.Auth | null = null;
+let _backendProjectId: string | null = null;
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential,
-    // No storageBucket here on purpose — this project does not use Firebase
-    // Storage. Car photos are compressed client-side and stored as base64
-    // strings directly on the Firestore session document instead.
+try {
+  const { credential, projectId } = loadCredential();
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential,
+      // No storageBucket here on purpose — this project does not use
+      // Firebase Storage. Car photos are compressed client-side and stored
+      // as base64 strings directly on the Firestore session document.
+    });
+  }
+  _db = admin.firestore();
+  _auth = admin.auth();
+  _backendProjectId = projectId;
+  console.log(`✅ Firebase Admin initialized for project "${projectId}"`);
+} catch (err: any) {
+  initError = err?.message || String(err);
+  console.error("🔥 FIREBASE ADMIN INIT FAILED — server will still start, but every");
+  console.error("   request that touches Firebase will return this error until fixed:");
+  console.error("  ", initError);
+}
+
+/** True once Firebase Admin has successfully initialized. */
+export function isFirebaseReady(): boolean {
+  return _db !== null && _auth !== null;
+}
+
+/** The reason initialization failed, or null if it succeeded. */
+export function getFirebaseInitError(): string | null {
+  return initError;
+}
+
+/** The Firebase project this backend is configured for, once known. */
+export function getBackendProjectId(): string | null {
+  return _backendProjectId;
+}
+
+function makeLazyProxy<T extends object>(getInstance: () => T | null, label: string): T {
+  return new Proxy({} as T, {
+    get(_target, prop) {
+      const instance = getInstance();
+      if (!instance) {
+        throw new Error(`${label} is not initialized: ${initError}`);
+      }
+      const value = (instance as any)[prop];
+      return typeof value === "function" ? value.bind(instance) : value;
+    },
   });
 }
 
-export const db = admin.firestore();
-export const auth = admin.auth();
-// The project this backend is actually configured for, resolved correctly
-// regardless of which credential method (base64 or three separate vars)
-// was used — safe to rely on this instead of reading FIREBASE_PROJECT_ID
-// directly, since that variable may not be set when using the base64 method.
-export const backendProjectId = resolvedProjectId;
+// db/auth are proxies: safe to import anywhere, but any actual method call
+// on them (e.g. db.collection(...), auth.verifyIdToken(...)) will throw a
+// clear error — instead of crashing the process — if init failed.
+export const db = makeLazyProxy(() => _db, "Firestore");
+export const auth = makeLazyProxy(() => _auth, "Firebase Auth");
 export default admin;

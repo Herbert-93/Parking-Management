@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth";
 import ratesRoutes from "./routes/rates";
 import sessionsRoutes from "./routes/sessions";
 import statsRoutes from "./routes/stats";
+import { isFirebaseReady, getFirebaseInitError } from "./config/firebase";
 
 dotenv.config();
 
@@ -47,7 +48,13 @@ app.use(
 );
 
 app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "parking-backend" });
+  res.json({
+    status: "ok",
+    service: "parking-backend",
+    firebase: isFirebaseReady()
+      ? "connected"
+      : { status: "NOT CONNECTED", error: getFirebaseInitError() },
+  });
 });
 
 app.get("/health", (_req, res) => res.status(200).send("OK"));
