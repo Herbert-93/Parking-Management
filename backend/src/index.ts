@@ -80,3 +80,14 @@ app.use(
 app.listen(PORT, () => {
   console.log(`Parking backend listening on port ${PORT}`);
 });
+
+// Last line of defense: log and survive instead of crashing the whole
+// server if something somewhere still throws outside Express's request
+// cycle (e.g. a stray unhandled rejection). One bad request should never
+// take down every other user's connection.
+process.on("unhandledRejection", (reason) => {
+  console.error("🔥 Unhandled promise rejection (server staying up):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("🔥 Uncaught exception (server staying up):", err);
+});
