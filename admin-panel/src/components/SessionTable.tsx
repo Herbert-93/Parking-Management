@@ -98,12 +98,27 @@ export default function SessionTable({
               <td className="stat-figure px-4 py-3 text-ink/80">{formatUGX(s.ratePrice)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.entryTime)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.expectedExitTime)}</td>
-              <td className="px-4 py-3 text-ink/70">{s.exitTime ? fmt(s.exitTime) : "—"}</td>
+              <td className="px-4 py-3 text-ink/70">
+                {s.exitTime ? (
+                  fmt(s.exitTime)
+                ) : (
+                  <span className="text-xs italic text-ink/40">Still parked</span>
+                )}
+              </td>
               <td className="stat-figure px-4 py-3 font-medium">
-                {s.finalCost != null ? formatUGX(s.finalCost) : "—"}
-                {s.overageCost ? (
-                  <span className="ml-1 text-xs text-alert">(+{formatUGX(s.overageCost)} overage)</span>
-                ) : null}
+                {s.finalCost != null ? (
+                  <>
+                    {formatUGX(s.finalCost)}
+                    {s.overageCost ? (
+                      <span className="ml-1 text-xs text-alert">(+{formatUGX(s.overageCost)} overage)</span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span title="Amount due if the car leaves on time — recalculated with overage when it actually exits">
+                    <span className="text-ink/60">{formatUGX(s.ratePrice)}</span>{" "}
+                    <span className="text-xs text-ink/40">(due)</span>
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3">
                 <span
