@@ -25,10 +25,12 @@ class ApiService {
   Future<Map<String, String>> _headers({bool json = true}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw ApiException('Not signed in.');
-    // Force a fresh token on every request rather than trusting the cached
-    // one — cheap, and avoids intermittent "Invalid or expired token"
-    // errors from the backend when a cached token is close to expiry.
-    final token = await user.getIdToken(true);
+    // NOT forcing a refresh here on purpose: the Firebase SDK already
+    // refreshes tokens automatically in the background before they expire.
+    // Forcing a refresh on every call multiplies network round-trips to
+    // Google's securetoken endpoint, which is unnecessary and makes the
+    // app more sensitive to any flakiness on that connection.
+    final token = await user.getIdToken();
     return {
       'Authorization': 'Bearer $token',
       if (json) 'Content-Type': 'application/json',

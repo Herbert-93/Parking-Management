@@ -14,10 +14,13 @@ function checkConfigured() {
 async function authHeader(): Promise<Record<string, string>> {
   const user = firebaseAuth.currentUser;
   if (!user) throw new Error("Not signed in.");
-  // Force a fresh token on every request rather than trusting the cached
-  // one — avoids intermittent "Invalid or expired token" errors from the
-  // backend when a cached token is close to expiry.
-  const token = await user.getIdToken(true);
+  // NOT forcing a refresh here on purpose: the Firebase client SDK already
+  // refreshes the token automatically in the background before it expires.
+  // Forcing a refresh on every single call multiplies network round-trips
+  // to Google's securetoken.googleapis.com, which is unnecessary load and
+  // makes the app far more sensitive to any flakiness on that connection
+  // (proxies/firewalls/extensions that interfere with it).
+  const token = await user.getIdToken();
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -95,7 +98,7 @@ export async function registerProfile(body: {
   checkConfigured();
   const user = firebaseAuth.currentUser;
   if (!user) throw new Error("Not signed in.");
-  const token = await user.getIdToken(true);
+  const token = await user.getIdToken();
   const url = `${API_BASE}/api/auth/register-profile`;
   const res = await fetch(url, {
     method: "POST",
