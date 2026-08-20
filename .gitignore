@@ -67,3 +67,8 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+parking-management-2dd20-firebase-adminsdk-fbsvc-31b14d3f39.json
+*.json.key
+.env
+backend/.env
+admin-panel/.env.local
