@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { formatUGX } from "@/lib/currency";
 import StatCard from "@/components/StatCard";
 import SessionTable from "@/components/SessionTable";
 
@@ -49,7 +50,7 @@ export default function OverviewPage() {
         <StatCard label="Currently parked" value={summary ? String(summary.currentlyParked) : "—"} accent="signal" />
         <StatCard label="Entries today" value={summary ? String(summary.todayEntries) : "—"} />
         <StatCard label="Completed today" value={summary ? String(summary.todayCompleted) : "—"} accent="clear" />
-        <StatCard label="Revenue today" value={summary ? `$${summary.todayRevenue.toFixed(2)}` : "—"} accent="clear" />
+        <StatCard label="Revenue today" value={summary ? formatUGX(summary.todayRevenue) : "—"} accent="clear" />
       </div>
 
       <div className="mb-4 flex items-center justify-between">

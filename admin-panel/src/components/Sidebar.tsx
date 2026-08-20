@@ -10,7 +10,7 @@ const links = [
   { href: "/dashboard", label: "Overview", icon: "◈" },
   { href: "/dashboard/active", label: "Currently parked", icon: "🚗" },
   { href: "/dashboard/history", label: "History", icon: "☰" },
-  { href: "/dashboard/rates", label: "Rate plans", icon: "$" },
+  { href: "/dashboard/rates", label: "Rate plans", icon: "◎" },
 ];
 
 export default function Sidebar() {

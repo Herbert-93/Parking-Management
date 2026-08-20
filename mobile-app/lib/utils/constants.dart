@@ -19,6 +19,19 @@ const String kApiBaseUrl = String.fromEnvironment(
 
 const bool kApiBaseUrlConfigured = kApiBaseUrl != '';
 
+/// Formats an amount as Ugandan Shillings, e.g. 15000 -> "UGX 15,000".
+/// UGX is conventionally shown without decimal places.
+String formatUGX(num amount) {
+  final rounded = amount.round();
+  final digits = rounded.abs().toString();
+  final buffer = StringBuffer();
+  for (int i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return 'UGX ${rounded < 0 ? '-' : ''}$buffer';
+}
+
 // Palette matching the admin panel's "ops dashboard" identity.
 const Color kNight = Color(0xFF10151C);
 const Color kSignal = Color(0xFFE7AB3C);

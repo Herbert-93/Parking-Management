@@ -1,5 +1,7 @@
 "use client";
 
+import { formatUGX } from "@/lib/currency";
+
 interface Session {
   id: string;
   plateNumber: string;
@@ -92,16 +94,15 @@ export default function SessionTable({
                 <span className="inline-flex items-center gap-1 rounded-full bg-slab px-2 py-0.5 font-medium text-ink">
                   {fmtDuration(s.durationHours)}
                 </span>
-                <span className="ml-1 text-xs text-ink/40">({s.rateLabel})</span>
               </td>
-              <td className="stat-figure px-4 py-3 text-ink/80">${s.ratePrice.toFixed(2)}</td>
+              <td className="stat-figure px-4 py-3 text-ink/80">{formatUGX(s.ratePrice)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.entryTime)}</td>
               <td className="px-4 py-3 text-ink/70">{fmt(s.expectedExitTime)}</td>
               <td className="px-4 py-3 text-ink/70">{s.exitTime ? fmt(s.exitTime) : "—"}</td>
               <td className="stat-figure px-4 py-3 font-medium">
-                {s.finalCost != null ? `$${s.finalCost.toFixed(2)}` : "—"}
+                {s.finalCost != null ? formatUGX(s.finalCost) : "—"}
                 {s.overageCost ? (
-                  <span className="ml-1 text-xs text-alert">(+${s.overageCost.toFixed(2)} overage)</span>
+                  <span className="ml-1 text-xs text-alert">(+{formatUGX(s.overageCost)} overage)</span>
                 ) : null}
               </td>
               <td className="px-4 py-3">

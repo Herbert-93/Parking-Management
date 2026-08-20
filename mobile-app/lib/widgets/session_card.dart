@@ -78,7 +78,8 @@ class SessionCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: (isActive ? kSignal : kClear).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -95,16 +96,19 @@ class SessionCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('${session.rateLabel} · \$${session.ratePrice.toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 13)),
+                Text('${session.rateLabel} · ${formatUGX(session.ratePrice)}',
+                    style: TextStyle(
+                        color: Colors.black.withOpacity(0.6), fontSize: 13)),
                 Text('In: ${fmt.format(session.entryTime)}',
-                    style: TextStyle(color: Colors.black.withOpacity(0.5), fontSize: 12)),
+                    style: TextStyle(
+                        color: Colors.black.withOpacity(0.5), fontSize: 12)),
                 Text('Expected out: ${fmt.format(session.expectedExitTime)}',
-                    style: TextStyle(color: Colors.black.withOpacity(0.5), fontSize: 12)),
+                    style: TextStyle(
+                        color: Colors.black.withOpacity(0.5), fontSize: 12)),
                 if (session.finalCost != null)
                   Text(
-                    'Paid: \$${session.finalCost!.toStringAsFixed(2)}'
-                    '${session.overageCost != null && session.overageCost! > 0 ? '  (+\$${session.overageCost!.toStringAsFixed(2)} overage)' : ''}',
+                    'Paid: ${formatUGX(session.finalCost!)}'
+                    '${session.overageCost != null && session.overageCost! > 0 ? '  (+${formatUGX(session.overageCost!)} overage)' : ''}',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -120,14 +124,16 @@ class SessionCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: kInk,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 minimumSize: Size.zero,
               ),
               child: busy
                   ? const SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Text('Log out', style: TextStyle(fontSize: 12)),
             ),

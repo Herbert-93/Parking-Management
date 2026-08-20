@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { formatUGX } from "@/lib/currency";
 import { useAuth } from "@/lib/auth-context";
 
 interface Rate {
@@ -93,15 +94,15 @@ export default function RatesPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">Price ($)</label>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">Price (UGX)</label>
             <input
               required
               type="number"
               min={0}
-              step={0.5}
+              step={500}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="10"
+              placeholder="15000"
               className="w-full rounded-md border border-hairline px-3 py-2 text-sm"
             />
           </div>
@@ -132,7 +133,7 @@ export default function RatesPage() {
               <tr key={r.id} className="border-b border-hairline last:border-0">
                 <td className="px-4 py-3 font-medium">{r.label}</td>
                 <td className="px-4 py-3 text-ink/70">{r.durationHours}h</td>
-                <td className="stat-figure px-4 py-3">${r.price.toFixed(2)}</td>
+                <td className="stat-figure px-4 py-3">{formatUGX(r.price)}</td>
                 {isOwner && (
                   <td className="px-4 py-3">
                     <button onClick={() => handleDelete(r.id)} className="text-xs font-medium text-alert">

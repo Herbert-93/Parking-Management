@@ -41,7 +41,7 @@ class _EntryScreenState extends State<EntryScreen> {
     super.dispose();
   }
 
-  Future<void> _takePhoto() async {
+  Future<void> _pickPhoto(ImageSource source) async {
     setState(() {
       _error = null;
       _capturingPhoto = true;
@@ -52,26 +52,36 @@ class _EntryScreenState extends State<EntryScreen> {
       // directly on the Firestore document (no separate file storage), so a
       // small, heavily-compressed thumbnail (usually 15-40KB) is what we
       // want — plenty to identify a car, well under Firestore's 1MB cap.
-      // On web this opens the browser's camera/file picker; on a real
-      // device it opens the native camera.
       final picked = await picker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 35,
         maxWidth: 480,
       );
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        if (bytes.isEmpty) {
-          throw Exception('The photo came back empty. Please try again.');
-        }
-        setState(() => _photoBytes = bytes);
+      if (picked == null) {
+        // On a real device this usually means either the user backed out,
+        // or (very commonly) the app doesn't actually have camera
+        // permission yet so Android silently refused to open it. Surface
+        // this instead of staying silent, since silent failure is
+        // indistinguishable from "nothing happened."
+        setState(() {
+          _error = source == ImageSource.camera
+              ? 'No photo was captured. If the camera did not open at all, this app may be '
+                  'missing camera permission — check Settings → Apps → this app → Permissions → Camera, '
+                  'or try "Choose from gallery" below instead.'
+              : null; // gallery cancel is unambiguous, no need to warn
+        });
+        return;
       }
-      // If picked == null the user simply cancelled — not an error.
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception('The photo came back empty. Please try again.');
+      }
+      setState(() => _photoBytes = bytes);
     } catch (e) {
       setState(() {
         _error =
-            'Could not take photo: ${e.toString().replaceFirst('Exception: ', '')}. '
-            'Check that this browser/app has camera permission.';
+            'Could not get photo: ${e.toString().replaceFirst('Exception: ', '')}. '
+            'Check that this app has camera permission in your phone settings.';
       });
     } finally {
       if (mounted) setState(() => _capturingPhoto = false);
@@ -126,7 +136,7 @@ class _EntryScreenState extends State<EntryScreen> {
 
       setState(() {
         _success =
-            '$plateUpper logged in — ${_formatDuration(hours)} · \$${price.toStringAsFixed(2)}. '
+            '$plateUpper logged in — ${_formatDuration(hours)} · ${formatUGX(price)}. '
             'It now shows on the admin panel and the Parked tab.';
         _plateController.clear();
         _photoBytes = null;
@@ -170,7 +180,9 @@ class _EntryScreenState extends State<EntryScreen> {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
               const SizedBox(height: 6),
               GestureDetector(
-                onTap: _capturingPhoto ? null : _takePhoto,
+                onTap: _capturingPhoto
+                    ? null
+                    : () => _pickPhoto(ImageSource.camera),
                 child: Container(
                   height: 200,
                   width: double.infinity,
@@ -226,7 +238,21 @@ class _EntryScreenState extends State<EntryScreen> {
                             ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _capturingPhoto
+                      ? null
+                      : () => _pickPhoto(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 16),
+                  label: const Text('Choose from gallery instead',
+                      style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero, minimumSize: Size.zero),
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // --- Plate number ---
               const Text('Plate number',
@@ -327,7 +353,7 @@ class _EntryScreenState extends State<EntryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Rate (\$)',
+                        const Text('Rate (UGX)',
                             style: TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 13)),
                         const SizedBox(height: 6),
@@ -335,16 +361,14 @@ class _EntryScreenState extends State<EntryScreen> {
                           controller: _priceController,
                           onChanged: (_) => setState(() {}),
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                              decimal: false),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d*'))
+                            FilteringTextInputFormatter.digitsOnly
                           ],
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 18),
                           decoration: InputDecoration(
-                            hintText: 'e.g. 10',
-                            prefixText: '\$ ',
+                            hintText: 'e.g. 15000',
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -391,7 +415,7 @@ class _EntryScreenState extends State<EntryScreen> {
                           ),
                         ],
                       ),
-                      Text('\$${_price!.toStringAsFixed(2)}',
+                      Text(formatUGX(_price!),
                           style: const TextStyle(
                               color: kSignal,
                               fontWeight: FontWeight.bold,
